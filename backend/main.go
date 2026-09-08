@@ -47,8 +47,22 @@ func main() {
 	mux.HandleFunc("/tickets", middleware.AuthMiddleware(routes.TicketListAndCreate))
 	mux.HandleFunc("/tickets/", middleware.AuthMiddleware(routes.SingleTicket))
 
-	fmt.Printf("Server listening on port %s...\n", port)
-	if err := http.ListenAndServe(":"+port, corsMiddleware(mux)); err != nil {
+	host := os.Getenv("HOST")
+	if host == "" {
+		if os.Getenv("RENDER") != "" {
+			host = "0.0.0.0"
+		} else {
+			host = "127.0.0.1"
+		}
+	}
+
+	addr := host + ":" + port
+	if host == "0.0.0.0" {
+		addr = ":" + port
+	}
+
+	fmt.Printf("Server listening on %s...\n", addr)
+	if err := http.ListenAndServe(addr, corsMiddleware(mux)); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

@@ -1,5 +1,55 @@
-// Backend API URL
-const API_BASE_URL = "http://localhost:8080";
+// Backend API URL - loaded dynamically from .env
+let API_BASE_URL = "";
+let envConfigPromise = null;
+
+// Load configuration from .env file
+async function loadEnvConfig() {
+  if (API_BASE_URL) return API_BASE_URL;
+
+  const envPaths = ["./.env", ".env", "./frontend/.env", "/frontend/.env", "/.env"];
+  for (const path of envPaths) {
+    try {
+      const res = await fetch(path);
+      if (res.ok) {
+        const text = await res.text();
+        const lines = text.split(/\r?\n/);
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
+            const [key, ...values] = trimmed.split("=");
+            if (key.trim() === "BACKEND_URL") {
+              let val = values.join("=").trim().replace(/^["']|["']$/g, "");
+              if (val.endsWith("/")) {
+                val = val.slice(0, -1);
+              }
+              if (val) {
+                API_BASE_URL = val;
+                console.log("Loaded API_BASE_URL from", path, ":", API_BASE_URL);
+                return API_BASE_URL;
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // Try next path
+    }
+  }
+
+  if (!API_BASE_URL) {
+    console.error("BACKEND_URL is not set in .env");
+  }
+  return API_BASE_URL;
+}
+
+// Ensure env config is loaded before any API call
+function ensureEnvLoaded() {
+  if (!envConfigPromise) {
+    envConfigPromise = loadEnvConfig();
+  }
+  return envConfigPromise;
+}
+
 
 // Application state
 let token = localStorage.getItem("token") || null;
@@ -43,6 +93,12 @@ const ticketDescInput = document.getElementById("ticketDescInput");
 // Check server health
 async function checkHealth() {
   const dot = healthBadge.querySelector(".status-dot");
+  await ensureEnvLoaded();
+  if (!API_BASE_URL) {
+    dot.className = "status-dot offline";
+    healthText.textContent = "URL not set in .env";
+    return;
+  }
   try {
     const res = await fetch(`${API_BASE_URL}/health`);
     if (res.ok) {
@@ -91,6 +147,11 @@ function setAuthMode(mode) {
 // Handle login and registration
 async function handleAuth(e) {
   e.preventDefault();
+  await ensureEnvLoaded();
+  if (!API_BASE_URL) {
+    showToast("Backend URL not configured in .env", "error");
+    return;
+  }
 
   const username = usernameInput.value.trim();
   const password = passwordInput.value.trim();
@@ -150,6 +211,8 @@ function logout() {
 // Fetch user tickets from API
 async function fetchTickets() {
   if (!token) return;
+  await ensureEnvLoaded();
+  if (!API_BASE_URL) return;
 
   try {
     const res = await fetch(`${API_BASE_URL}/tickets`, {
@@ -240,6 +303,12 @@ function renderTickets() {
 
 // Update ticket status
 async function updateStatus(ticketId, newStatus) {
+  await ensureEnvLoaded();
+  if (!API_BASE_URL) {
+    showToast("Backend URL not configured in .env", "error");
+    return;
+  }
+
   try {
     const res = await fetch(`${API_BASE_URL}/tickets/${ticketId}/status`, {
       method: "PATCH",
@@ -266,6 +335,11 @@ async function updateStatus(ticketId, newStatus) {
 // Create new ticket
 async function handleCreateTicket(e) {
   e.preventDefault();
+  await ensureEnvLoaded();
+  if (!API_BASE_URL) {
+    showToast("Backend URL not configured in .env", "error");
+    return;
+  }
 
   const title = ticketTitleInput.value.trim();
   const description = ticketDescInput.value.trim();
@@ -360,6 +434,11 @@ filterBtns.forEach((btn) => {
 });
 
 // Initial run
-checkHealth();
-renderAppView();
-setInterval(checkHealth, 15000);
+async function initApp() {
+  await loadEnvConfig();
+  checkHealth();
+  renderAppView();
+  setInterval(checkHealth, 15000);
+}
+
+initApp();

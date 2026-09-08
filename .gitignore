@@ -9,7 +9,9 @@ tickets.db
 *.exe
 
 # Environment files
+backend/.env
 .env
+!frontend/.env
 
 # OS and Editor metadata
 .DS_Store
