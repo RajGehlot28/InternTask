@@ -1,0 +1,18 @@
+# SQLite database files
+*.db
+*.db-journal
+tickets.db
+
+# Executables & Binaries
+/backend/server
+/backend/server.exe
+*.exe
+
+# Environment files
+.env
+
+# OS and Editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
