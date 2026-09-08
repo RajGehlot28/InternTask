@@ -1,10 +1,32 @@
-// Backend API URL - loaded dynamically from Vercel environment or .env
+// Backend API URL - loaded exclusively from .env or Vercel environment
 let API_BASE_URL = "";
+let envLoaded = false;
 let envConfigPromise = null;
+
+// Safe response parser that prevents JSON syntax errors when server returns non-JSON/HTML
+async function parseResponse(res) {
+  const contentType = res.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    try {
+      return await res.json();
+    } catch (e) {
+      // Fall through to text
+    }
+  }
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    if (!res.ok) {
+      throw new Error(text || `Server returned ${res.status} (${res.statusText})`);
+    }
+    return { message: text };
+  }
+}
 
 // Load configuration from Vercel Serverless Function (/api/config) or .env file
 async function loadEnvConfig() {
-  if (API_BASE_URL) return API_BASE_URL;
+  if (envLoaded) return API_BASE_URL;
 
   // 1. First attempt: Load from Vercel Serverless Function (reads process.env.BACKEND_URL from Vercel)
   const apiPaths = ["/api/config", "./api/config", "../api/config"];
@@ -12,14 +34,18 @@ async function loadEnvConfig() {
     try {
       const res = await fetch(apiPath);
       if (res.ok) {
-        const data = await res.json();
-        if (data && data.backendUrl) {
-          let val = data.backendUrl.trim();
-          if (val.endsWith("/")) val = val.slice(0, -1);
-          if (val) {
-            API_BASE_URL = val;
-            console.log("Loaded API_BASE_URL from Vercel:", API_BASE_URL);
-            return API_BASE_URL;
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          if (data && data.backendUrl) {
+            let val = data.backendUrl.trim();
+            if (val.endsWith("/")) val = val.slice(0, -1);
+            if (val) {
+              API_BASE_URL = val;
+              envLoaded = true;
+              console.log("Loaded API_BASE_URL from Vercel:", API_BASE_URL);
+              return API_BASE_URL;
+            }
           }
         }
       }
@@ -47,6 +73,7 @@ async function loadEnvConfig() {
               }
               if (val) {
                 API_BASE_URL = val;
+                envLoaded = true;
                 console.log("Loaded API_BASE_URL from", path, ":", API_BASE_URL);
                 return API_BASE_URL;
               }
@@ -59,9 +86,7 @@ async function loadEnvConfig() {
     }
   }
 
-  if (!API_BASE_URL) {
-    console.error("BACKEND_URL is not set in Vercel or .env");
-  }
+  envLoaded = true;
   return API_BASE_URL;
 }
 
@@ -96,6 +121,9 @@ const formTitle = document.getElementById("formTitle");
 const formSubtitle = document.getElementById("formSubtitle");
 const usernameInput = document.getElementById("usernameInput");
 const passwordInput = document.getElementById("passwordInput");
+const togglePasswordBtn = document.getElementById("togglePasswordBtn");
+const eyeIcon = document.getElementById("eyeIcon");
+const eyeOffIcon = document.getElementById("eyeOffIcon");
 const authSubmitBtn = document.getElementById("authSubmitBtn");
 
 const loggedUsername = document.getElementById("loggedUsername");
@@ -197,7 +225,7 @@ async function handleAuth(e) {
       body: JSON.stringify({ username, password })
     });
 
-    const data = await res.json();
+    const data = await parseResponse(res);
 
     if (!res.ok) {
       throw new Error(data.error || "Authentication failed");
@@ -250,11 +278,13 @@ async function fetchTickets() {
       return;
     }
 
+    const data = await parseResponse(res);
+
     if (!res.ok) {
-      throw new Error("Failed to load tickets");
+      throw new Error(data.error || "Failed to load tickets");
     }
 
-    userTickets = await res.json();
+    userTickets = Array.isArray(data) ? data : [];
     renderTickets();
   } catch (err) {
     showToast(err.message, "error");
@@ -343,7 +373,7 @@ async function updateStatus(ticketId, newStatus) {
       body: JSON.stringify({ status: newStatus })
     });
 
-    const data = await res.json();
+    const data = await parseResponse(res);
 
     if (!res.ok) {
       throw new Error(data.error || "Status update failed");
@@ -383,7 +413,7 @@ async function handleCreateTicket(e) {
       body: JSON.stringify({ title, description })
     });
 
-    const data = await res.json();
+    const data = await parseResponse(res);
 
     if (!res.ok) {
       throw new Error(data.error || "Failed to create ticket");
@@ -438,6 +468,19 @@ tabLogin.addEventListener("click", () => setAuthMode("login"));
 tabRegister.addEventListener("click", () => setAuthMode("register"));
 authForm.addEventListener("submit", handleAuth);
 logoutBtn.addEventListener("click", logout);
+
+if (togglePasswordBtn) {
+  togglePasswordBtn.addEventListener("click", () => {
+    const isPassword = passwordInput.type === "password";
+    passwordInput.type = isPassword ? "text" : "password";
+    if (eyeIcon && eyeOffIcon) {
+      eyeIcon.classList.toggle("hidden", isPassword);
+      eyeOffIcon.classList.toggle("hidden", !isPassword);
+    }
+    togglePasswordBtn.title = isPassword ? "Hide password" : "Show password";
+    togglePasswordBtn.setAttribute("aria-label", isPassword ? "Hide password" : "Show password");
+  });
+}
 
 openCreateModalBtn.addEventListener("click", openModal);
 if (createFirstTicketBtn) createFirstTicketBtn.addEventListener("click", openModal);
