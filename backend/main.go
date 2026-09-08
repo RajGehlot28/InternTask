@@ -40,12 +40,20 @@ func main() {
 
 	// Register public routes
 	mux.HandleFunc("/health", routes.HealthCheck)
+	mux.HandleFunc("/api/health", routes.HealthCheck)
+
 	mux.HandleFunc("/auth/register", routes.Register)
+	mux.HandleFunc("/api/auth/register", routes.Register)
+
 	mux.HandleFunc("/auth/login", routes.Login)
+	mux.HandleFunc("/api/auth/login", routes.Login)
 
 	// Register protected ticket routes
 	mux.HandleFunc("/tickets", middleware.AuthMiddleware(routes.TicketListAndCreate))
+	mux.HandleFunc("/api/tickets", middleware.AuthMiddleware(routes.TicketListAndCreate))
+
 	mux.HandleFunc("/tickets/", middleware.AuthMiddleware(routes.SingleTicket))
+	mux.HandleFunc("/api/tickets/", middleware.AuthMiddleware(routes.SingleTicket))
 
 	host := os.Getenv("HOST")
 	if host == "" {

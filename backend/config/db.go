@@ -39,28 +39,16 @@ func loadEnv() {
 	}
 }
 
-func getEnv(key, fallback string) string {
-	if val := os.Getenv(key); val != "" {
-		return val
-	}
-	return fallback
-}
-
-// Connect to PostgreSQL database
+// Connect to PostgreSQL database using DATABASE_URL exclusively
 func InitDB() error {
 	loadEnv()
 
-	connStr := os.Getenv("DATABASE_URL")
+	connStr := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if connStr == "" {
-		pgHost := getEnv("POSTGRES_HOST", "localhost")
-		pgUser := getEnv("POSTGRES_USER", "postgres")
-		pgPass := getEnv("POSTGRES_PASSWORD", "postgres")
-		pgDB := getEnv("POSTGRES_DB", "ticketdb")
-		pgPort := getEnv("POSTGRES_PORT", "5432")
-		connStr = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", pgUser, pgPass, pgHost, pgPort, pgDB)
+		return fmt.Errorf("DATABASE_URL environment variable is required to connect with database")
 	}
 
-	fmt.Println("Connecting to PostgreSQL database...")
+	fmt.Println("Connecting to PostgreSQL database using DATABASE_URL...")
 
 	var err error
 	DB, err = sql.Open("postgres", connStr)

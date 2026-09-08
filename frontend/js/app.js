@@ -1,7 +1,5 @@
-// Backend API URL - loaded exclusively from .env or Vercel environment
-let API_BASE_URL = "";
-let envLoaded = false;
-let envConfigPromise = null;
+// Backend API URL (Render deployed service)
+const BACKEND_URL = "https://interntask-oqlm.onrender.com";
 
 // Safe response parser that prevents JSON syntax errors when server returns non-JSON/HTML
 async function parseResponse(res) {
@@ -24,79 +22,6 @@ async function parseResponse(res) {
   }
 }
 
-// Load configuration from Vercel Serverless Function (/api/config) or .env file
-async function loadEnvConfig() {
-  if (envLoaded) return API_BASE_URL;
-
-  // 1. First attempt: Load from Vercel Serverless Function (reads process.env.BACKEND_URL from Vercel)
-  const apiPaths = ["/api/config", "./api/config", "../api/config"];
-  for (const apiPath of apiPaths) {
-    try {
-      const res = await fetch(apiPath);
-      if (res.ok) {
-        const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const data = await res.json();
-          if (data && data.backendUrl) {
-            let val = data.backendUrl.trim();
-            if (val.endsWith("/")) val = val.slice(0, -1);
-            if (val) {
-              API_BASE_URL = val;
-              envLoaded = true;
-              console.log("Loaded API_BASE_URL from Vercel:", API_BASE_URL);
-              return API_BASE_URL;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      // Try next path
-    }
-  }
-
-  // 2. Second attempt: Load from .env file
-  const envPaths = ["./.env", ".env", "./frontend/.env", "/frontend/.env", "/.env"];
-  for (const path of envPaths) {
-    try {
-      const res = await fetch(path);
-      if (res.ok) {
-        const text = await res.text();
-        const lines = text.split(/\r?\n/);
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
-            const [key, ...values] = trimmed.split("=");
-            if (key.trim() === "BACKEND_URL") {
-              let val = values.join("=").trim().replace(/^["']|["']$/g, "");
-              if (val.endsWith("/")) {
-                val = val.slice(0, -1);
-              }
-              if (val) {
-                API_BASE_URL = val;
-                envLoaded = true;
-                console.log("Loaded API_BASE_URL from", path, ":", API_BASE_URL);
-                return API_BASE_URL;
-              }
-            }
-          }
-        }
-      }
-    } catch (err) {
-      // Try next path
-    }
-  }
-
-  envLoaded = true;
-  return API_BASE_URL;
-}
-
-// Ensure env config is loaded before any API call
-function ensureEnvLoaded() {
-  if (!envConfigPromise) {
-    envConfigPromise = loadEnvConfig();
-  }
-  return envConfigPromise;
-}
 
 
 // Application state
@@ -199,11 +124,6 @@ function setAuthMode(mode) {
 // Handle login and registration
 async function handleAuth(e) {
   e.preventDefault();
-  await ensureEnvLoaded();
-  if (!API_BASE_URL) {
-    showToast("Backend URL not configured in .env", "error");
-    return;
-  }
 
   const username = usernameInput.value.trim();
   const password = passwordInput.value.trim();
@@ -219,7 +139,7 @@ async function handleAuth(e) {
     authSubmitBtn.disabled = true;
     authSubmitBtn.textContent = "Processing...";
 
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const res = await fetch(`${BACKEND_URL}${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password })
@@ -263,11 +183,9 @@ function logout() {
 // Fetch user tickets from API
 async function fetchTickets() {
   if (!token) return;
-  await ensureEnvLoaded();
-  if (!API_BASE_URL) return;
 
   try {
-    const res = await fetch(`${API_BASE_URL}/tickets`, {
+    const res = await fetch(`${BACKEND_URL}/tickets`, {
       headers: {
         "Authorization": `Bearer ${token}`
       }
@@ -357,14 +275,8 @@ function renderTickets() {
 
 // Update ticket status
 async function updateStatus(ticketId, newStatus) {
-  await ensureEnvLoaded();
-  if (!API_BASE_URL) {
-    showToast("Backend URL not configured in .env", "error");
-    return;
-  }
-
   try {
-    const res = await fetch(`${API_BASE_URL}/tickets/${ticketId}/status`, {
+    const res = await fetch(`${BACKEND_URL}/tickets/${ticketId}/status`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -389,11 +301,6 @@ async function updateStatus(ticketId, newStatus) {
 // Create new ticket
 async function handleCreateTicket(e) {
   e.preventDefault();
-  await ensureEnvLoaded();
-  if (!API_BASE_URL) {
-    showToast("Backend URL not configured in .env", "error");
-    return;
-  }
 
   const title = ticketTitleInput.value.trim();
   const description = ticketDescInput.value.trim();
@@ -404,7 +311,7 @@ async function handleCreateTicket(e) {
   }
 
   try {
-    const res = await fetch(`${API_BASE_URL}/tickets`, {
+    const res = await fetch(`${BACKEND_URL}/tickets`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -503,12 +410,7 @@ filterBtns.forEach((btn) => {
 });
 
 // Initial run
-async function initApp() {
-  await loadEnvConfig();
-  if (healthBadge) {
-    checkHealth();
-    setInterval(checkHealth, 15000);
-  }
+function initApp() {
   renderAppView();
 }
 
