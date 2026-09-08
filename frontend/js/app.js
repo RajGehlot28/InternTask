@@ -1,11 +1,34 @@
-// Backend API URL - loaded dynamically from .env
+// Backend API URL - loaded dynamically from Vercel environment or .env
 let API_BASE_URL = "";
 let envConfigPromise = null;
 
-// Load configuration from .env file
+// Load configuration from Vercel Serverless Function (/api/config) or .env file
 async function loadEnvConfig() {
   if (API_BASE_URL) return API_BASE_URL;
 
+  // 1. First attempt: Load from Vercel Serverless Function (reads process.env.BACKEND_URL from Vercel)
+  const apiPaths = ["/api/config", "./api/config", "../api/config"];
+  for (const apiPath of apiPaths) {
+    try {
+      const res = await fetch(apiPath);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.backendUrl) {
+          let val = data.backendUrl.trim();
+          if (val.endsWith("/")) val = val.slice(0, -1);
+          if (val) {
+            API_BASE_URL = val;
+            console.log("Loaded API_BASE_URL from Vercel:", API_BASE_URL);
+            return API_BASE_URL;
+          }
+        }
+      }
+    } catch (e) {
+      // Try next path
+    }
+  }
+
+  // 2. Second attempt: Load from .env file
   const envPaths = ["./.env", ".env", "./frontend/.env", "/frontend/.env", "/.env"];
   for (const path of envPaths) {
     try {
@@ -37,7 +60,7 @@ async function loadEnvConfig() {
   }
 
   if (!API_BASE_URL) {
-    console.error("BACKEND_URL is not set in .env");
+    console.error("BACKEND_URL is not set in Vercel or .env");
   }
   return API_BASE_URL;
 }
@@ -92,6 +115,7 @@ const ticketDescInput = document.getElementById("ticketDescInput");
 
 // Check server health
 async function checkHealth() {
+  if (!healthBadge || !healthText) return;
   const dot = healthBadge.querySelector(".status-dot");
   await ensureEnvLoaded();
   if (!API_BASE_URL) {
@@ -422,7 +446,9 @@ cancelModalBtn.addEventListener("click", closeModal);
 modalOverlay.addEventListener("click", closeModal);
 createTicketForm.addEventListener("submit", handleCreateTicket);
 
-healthBadge.addEventListener("click", checkHealth);
+if (healthBadge) {
+  healthBadge.addEventListener("click", checkHealth);
+}
 
 filterBtns.forEach((btn) => {
   btn.addEventListener("click", (e) => {
@@ -436,9 +462,11 @@ filterBtns.forEach((btn) => {
 // Initial run
 async function initApp() {
   await loadEnvConfig();
-  checkHealth();
+  if (healthBadge) {
+    checkHealth();
+    setInterval(checkHealth, 15000);
+  }
   renderAppView();
-  setInterval(checkHealth, 15000);
 }
 
 initApp();
